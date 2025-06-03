@@ -1,0 +1,76 @@
+name: Deploy Odoo to Hetzner
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Deploy to Hetzner VPS
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.HOST }}
+        username: ${{ secrets.USERNAME }}
+        key: ${{ secrets.SSH_KEY }}
+        port: 22
+        script: |
+          cd /opt/odoo
+          
+          # Backup antes do deploy
+          echo "🗄️ Fazendo backup..."
+          if [ -f "./backup.sh" ]; then
+            ./backup.sh
+          fi
+          
+          # Verificar se é primeira execução
+          if [ ! -d ".git" ]; then
+            echo "📥 Primeira execução - inicializando Git..."
+            git init
+            git remote add origin https://github.com/fbarbalho/odoo-production.git
+          fi
+          
+          # Atualizar código
+          echo "📥 Atualizando código..."
+          git fetch origin main
+          git reset --hard origin/main
+          
+          # Verificar se .env existe
+          if [ ! -f ".env" ]; then
+            echo "⚠️ Arquivo .env não encontrado! Copiando exemplo..."
+            cp .env.example .env
+            echo "🔧 ATENÇÃO: Edite o arquivo .env com sua senha!"
+          fi
+          
+          # Tornar scripts executáveis
+          chmod +x *.sh
+          
+          # Verificar se precisa rebuild
+          if git diff HEAD~1 HEAD --name-only 2>/dev/null | grep -q -E "(docker-compose\.yml|Dockerfile)"; then
+            echo "🔧 Rebuild necessário..."
+            docker-compose down
+            docker-compose up -d --build
+          else
+            echo "🔄 Restart simples..."
+            docker-compose up -d
+          fi
+          
+          # Aguardar containers
+          echo "⏳ Aguardando containers inicializarem..."
+          sleep 45
+          
+          # Verificar se está funcionando
+          if docker-compose ps | grep -q "Up"; then
+            echo "✅ Deploy concluído com sucesso!"
+            echo "🌐 Odoo disponível em: http://$(curl -s ifconfig.me):8069"
+          else
+            echo "❌ Erro no deploy - verificando logs..."
+            docker-compose logs --tail=20
+            exit 1
+          fi

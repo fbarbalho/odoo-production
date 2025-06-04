@@ -50,8 +50,8 @@ GITIGNORE_EOF
 # Criar .env.example
 echo "🔧 Criando .env.example..."
 cat > .env.example << 'ENV_EOF'
-# PostgreSQL password - ALTERE PARA UMA SENHA SEGURA
-POSTGRES_PASSWORD=mude_esta_senha_por_favor
+# PostgreSQL password - será gerada automaticamente ou via GitHub Secrets
+# POSTGRES_PASSWORD=sua_senha_aqui
 ENV_EOF
 
 # Criar docker-compose.yml
@@ -205,11 +205,17 @@ jobs:
           git fetch origin main
           git reset --hard origin/main
           
-          # Verificar se .env existe
+          # Verificar se .env existe, se não, criar com senha do GitHub Secrets
           if [ ! -f ".env" ]; then
-            echo "⚠️ Arquivo .env não encontrado! Copiando exemplo..."
-            cp .env.example .env
-            echo "🔧 ATENÇÃO: Edite o arquivo .env com sua senha!"
+            echo "🔧 Criando arquivo .env com senha do GitHub Secrets..."
+            echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" > .env
+          else
+            # Atualizar senha se ela mudou nos secrets
+            if grep -q "POSTGRES_PASSWORD=" .env; then
+              sed -i "s/POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}/" .env
+            else
+              echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" >> .env
+            fi
           fi
           
           # Tornar scripts executáveis
@@ -277,11 +283,16 @@ cd /opt/odoo
 # Clonar repositório
 git clone https://github.com/fbarbalho/odoo-production.git .
 
-# Configurar .env se não existir
+# Configurar .env com senha gerada automaticamente
 if [ ! -f ".env" ]; then
+    echo "🔐 Gerando senha PostgreSQL..."
     POSTGRES_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)
     echo "POSTGRES_PASSWORD=${POSTGRES_PASSWORD}" > .env
-    echo "💾 Senha PostgreSQL: ${POSTGRES_PASSWORD}"
+    echo "💾 Senha PostgreSQL gerada: ${POSTGRES_PASSWORD}"
+    echo "🔒 IMPORTANTE: Adicione esta senha como secret no GitHub!"
+    echo "   Vá em: Settings → Secrets → Actions"
+    echo "   Nome: POSTGRES_PASSWORD"
+    echo "   Valor: ${POSTGRES_PASSWORD}"
 fi
 
 # Tornar scripts executáveis
@@ -454,10 +465,11 @@ docker-compose up -d
 ```
 
 ### 3. Configurar GitHub Actions
-Secrets necessários:
-- `HOST`: IP da VPS
+Secrets necessários no GitHub (Settings → Secrets → Actions):
+- `HOST`: IP da VPS Hetzner
 - `USERNAME`: root
 - `SSH_KEY`: Chave privada SSH
+- `POSTGRES_PASSWORD`: Senha do PostgreSQL (gerada na instalação)
 
 ## 🌐 Acesso
 - Odoo: http://SEU_IP:8069
@@ -485,8 +497,44 @@ Push para `main` → GitHub Actions → Deploy automático
 Custo: €3.98/mês (Hetzner CX22)
 README_EOF
 
-# Criar arquivo para addons
-touch addons/.gitkeep
+# Criar helper para configurar secrets
+echo "🔑 Criando setup-secrets.sh..."
+cat > setup-secrets.sh << 'SECRETS_EOF'
+#!/bin/bash
+
+# Helper para configurar GitHub Secrets
+# Execute na VPS após instalação: ./setup-secrets.sh
+
+set -e
+
+echo "🔑 GitHub Secrets Configuration Helper"
+echo "======================================"
+
+if [ ! -f "/opt/odoo/.env" ]; then
+    echo "❌ Execute este script na VPS após a instalação!"
+    exit 1
+fi
+
+echo "📋 Coletando informações para GitHub Secrets..."
+
+# HOST
+HOST_IP=$(curl -s ifconfig.me 2>/dev/null || echo "OBTER_IP_MANUALMENTE")
+echo "🌐 HOST: $HOST_IP"
+
+# POSTGRES_PASSWORD
+POSTGRES_PASSWORD=$(grep "POSTGRES_PASSWORD=" /opt/odoo/.env | cut -d'=' -f2 2>/dev/null || echo "SENHA_NAO_ENCONTRADA")
+echo "🔒 POSTGRES_PASSWORD: $POSTGRES_PASSWORD"
+
+echo ""
+echo "🎯 CONFIGURAR NO GITHUB:"
+echo "https://github.com/fbarbalho/odoo-production/settings/secrets/actions"
+echo ""
+echo "Secrets necessários:"
+echo "- HOST: $HOST_IP"
+echo "- USERNAME: root"
+echo "- SSH_KEY: [conteúdo da chave privada SSH]"
+echo "- POSTGRES_PASSWORD: $POSTGRES_PASSWORD"
+SECRETS_EOF
 
 # Tornar scripts executáveis
 chmod +x *.sh
@@ -503,6 +551,15 @@ echo "   ├── backup.sh"
 echo "   ├── optimize-hetzner.sh"
 echo "   ├── monitor-resources.sh"
 echo "   └── README.md"
+echo ""
+echo ""
+echo "🔑 IMPORTANTE - Configurar GitHub Secrets:"
+echo "   1. Vá em: Settings → Secrets and variables → Actions"
+echo "   2. Adicione os secrets:"
+echo "      - HOST: IP_DA_VPS"
+echo "      - USERNAME: root"
+echo "      - SSH_KEY: sua_chave_privada_ssh"
+echo "      - POSTGRES_PASSWORD: senha_gerada_na_instalacao"
 echo ""
 echo "🚀 Próximos passos:"
 echo "   git add ."

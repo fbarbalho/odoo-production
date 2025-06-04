@@ -41,11 +41,17 @@ jobs:
           git fetch origin main
           git reset --hard origin/main
           
-          # Verificar se .env existe
+          # Verificar se .env existe, se não, criar com senha do GitHub Secrets
           if [ ! -f ".env" ]; then
-            echo "⚠️ Arquivo .env não encontrado! Copiando exemplo..."
-            cp .env.example .env
-            echo "🔧 ATENÇÃO: Edite o arquivo .env com sua senha!"
+            echo "🔧 Criando arquivo .env com senha do GitHub Secrets..."
+            echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" > .env
+          else
+            # Atualizar senha se ela mudou nos secrets
+            if grep -q "POSTGRES_PASSWORD=" .env; then
+              sed -i "s/POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}/" .env
+            else
+              echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" >> .env
+            fi
           fi
           
           # Tornar scripts executáveis

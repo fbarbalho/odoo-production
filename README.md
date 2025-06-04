@@ -18,10 +18,11 @@ docker-compose up -d
 ```
 
 ### 3. Configurar GitHub Actions
-Secrets necessários:
-- `HOST`: IP da VPS
+Secrets necessários no GitHub (Settings → Secrets → Actions):
+- `HOST`: IP da VPS Hetzner
 - `USERNAME`: root
 - `SSH_KEY`: Chave privada SSH
+- `POSTGRES_PASSWORD`: Senha do PostgreSQL (gerada na instalação)
 
 ## 🌐 Acesso
 - Odoo: http://SEU_IP:8069

@@ -32,11 +32,16 @@ cd /opt/odoo
 # Clonar repositório
 git clone https://github.com/fbarbalho/odoo-production.git .
 
-# Configurar .env se não existir
+# Configurar .env com senha gerada automaticamente
 if [ ! -f ".env" ]; then
+    echo "🔐 Gerando senha PostgreSQL..."
     POSTGRES_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)
     echo "POSTGRES_PASSWORD=${POSTGRES_PASSWORD}" > .env
-    echo "💾 Senha PostgreSQL: ${POSTGRES_PASSWORD}"
+    echo "💾 Senha PostgreSQL gerada: ${POSTGRES_PASSWORD}"
+    echo "🔒 IMPORTANTE: Adicione esta senha como secret no GitHub!"
+    echo "   Vá em: Settings → Secrets → Actions"
+    echo "   Nome: POSTGRES_PASSWORD"
+    echo "   Valor: ${POSTGRES_PASSWORD}"
 fi
 
 # Tornar scripts executáveis

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="whatsapp_widget" name="WhatsApp Widget" inherit_id="website.layout">
+        <xpath expr="//body" position="inside">
+            <div class="whatsapp-float" onclick="openWhatsApp()">
+                <i class="fa fa-whatsapp"></i>
+            </div>
+        </xpath>
+    </template>
+</odoo>
